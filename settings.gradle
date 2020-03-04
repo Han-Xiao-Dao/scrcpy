@@ -1,0 +1,4 @@
+include ':app', ':server'
+rootProject.name='scrcpy'
+include ':pivot'
+include ':util'
