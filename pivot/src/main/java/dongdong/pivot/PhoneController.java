@@ -15,9 +15,11 @@ import dongdong.pivot.manager.PortManager;
 
 public class PhoneController implements Closeable {
 
-    private static final int BYTE_LENGTH = 10240;
+    private static final int VIDEO_BUFFER_LENGTH = 10240;
+    private static final int CONTROL_BUFFER_LENGTH = 1024;
 
-    private ByteBuffer byteBuffer;
+    private final ByteBuffer videoBuffer;
+    private final ByteBuffer controlBuffer;
     private SocketChannel clientVideoSc;
     private SocketChannel serverVideoSc;
     private SocketChannel clientControlSc;
@@ -26,26 +28,36 @@ public class PhoneController implements Closeable {
     private final int port;
 
     public PhoneController(String phone) {
-        byteBuffer = ByteBuffer.allocateDirect(BYTE_LENGTH);
+        videoBuffer = ByteBuffer.allocateDirect(VIDEO_BUFFER_LENGTH);
+        controlBuffer = ByteBuffer.allocateDirect(CONTROL_BUFFER_LENGTH);
         serialNum = phone;
         port = PortManager.getInstance().getPort();
     }
 
     public void forward(SocketChannel socketChannel) throws IOException {
-        while (serverVideoSc.read(byteBuffer) > 0) {
-            byteBuffer.flip();
-            clientVideoSc.write(byteBuffer);
-            byteBuffer.clear();
+        if (socketChannel == serverVideoSc) {
+            while (serverVideoSc.read(videoBuffer) > 0) {
+                videoBuffer.flip();
+                clientVideoSc.write(videoBuffer);
+                videoBuffer.clear();
+            }
+        } else if (socketChannel == clientControlSc) {
+            while (clientControlSc.read(controlBuffer) > 0) {
+                controlBuffer.flip();
+                serverControlSc.write(controlBuffer);
+                controlBuffer.clear();
+            }
         }
+
     }
 
     public void connect() throws IOException {
         SocketAddress address = new InetSocketAddress("127.0.0.1", port);
         serverVideoSc = SocketChannel.open(address);
         serverVideoSc.configureBlocking(false);
-        byteBuffer.position(0);
-        byteBuffer.limit(1);
-        serverVideoSc.read(byteBuffer);
+        videoBuffer.position(0);
+        videoBuffer.limit(1);
+        serverVideoSc.read(videoBuffer);
         serverControlSc = SocketChannel.open(address);
         serverControlSc.configureBlocking(false);
     }
