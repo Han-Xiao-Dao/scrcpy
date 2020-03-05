@@ -1,8 +1,13 @@
 package dongdong.pivot.manager;
 
+import java.util.HashSet;
+import java.util.Set;
+
 public class PortManager {
 
     private static PortManager instance;
+    private Set<Integer> ports = new HashSet<>();
+    private int currentPort = 43736;
 
 
     private PortManager() {
@@ -20,10 +25,13 @@ public class PortManager {
     }
 
     public int getPort() {
-        return 0;
+        if (ports.isEmpty()) {
+            return currentPort++;
+        }
+        return ports.iterator().next();
     }
 
-    public void returnPort(int port) {
-
+    public void giveBackPort(int port) {
+        ports.add(port);
     }
 }

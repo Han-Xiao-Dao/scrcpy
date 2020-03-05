@@ -104,7 +104,7 @@ public class PhoneController implements Closeable {
     @Override
     public void close() throws IOException {
         ADBUtil.adbRemoveForward(serialNum, port);
-        PortManager.getInstance().returnPort(port);
+        PortManager.getInstance().giveBackPort(port);
         if (clientVideoSc != null) {
             clientVideoSc.close();
         }
