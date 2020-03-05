@@ -86,22 +86,19 @@ public class PhoneController implements Closeable {
         return isConnected(clientControlSc) && isConnected(clientVideoSc);
     }
 
-    public void runServer() {
-        try {
-            Process process = ADBUtil.adbPush(serialNum, "E:\\android\\scrcpy\\server\\build\\outputs\\apk\\debug\\scrcpy_server.jar", "/data/local/tmp");
-            process.waitFor(5, TimeUnit.SECONDS);
-            process.destroy();
+    public void runServer() throws IOException, InterruptedException {
 
-            Process process1 = ADBUtil.adbForward(serialNum, port);
-            process1.waitFor(2, TimeUnit.SECONDS);
-            process1.destroy();
+        Process process = ADBUtil.adbPush(serialNum, "E:\\android\\scrcpy\\server\\build\\outputs\\apk\\debug\\scrcpy_server.jar", "/data/local/tmp");
+        process.waitFor(5, TimeUnit.SECONDS);
+        process.destroy();
 
-            Process process2 = ADBUtil.adbShell(serialNum, "CLASSPATH=/data/local/tmp/scrcpy_server.jar app_process / dongdong.server.Server ");
-            process2.waitFor(2, TimeUnit.SECONDS);
-            process2.destroy();
-        } catch (InterruptedException | IOException e) {
-            e.printStackTrace();
-        }
+        Process process1 = ADBUtil.adbForward(serialNum, port);
+        process1.waitFor(2, TimeUnit.SECONDS);
+        process1.destroy();
+
+        Process process2 = ADBUtil.adbShell(serialNum, "CLASSPATH=/data/local/tmp/scrcpy_server.jar app_process / dongdong.server.Server ");
+        process2.waitFor(2, TimeUnit.SECONDS);
+        process2.destroy();
     }
 
     @Override
@@ -122,10 +119,43 @@ public class PhoneController implements Closeable {
         }
     }
 
+    public SocketChannel getClientVideoSc() {
+        return clientVideoSc;
+    }
+
+    public void setClientVideoSc(SocketChannel clientVideoSc) {
+        this.clientVideoSc = clientVideoSc;
+    }
+
+    public SocketChannel getServerVideoSc() {
+        return serverVideoSc;
+    }
+
+    public void setServerVideoSc(SocketChannel serverVideoSc) {
+        this.serverVideoSc = serverVideoSc;
+    }
+
+    public SocketChannel getClientControlSc() {
+        return clientControlSc;
+    }
+
+    public void setClientControlSc(SocketChannel clientControlSc) {
+        this.clientControlSc = clientControlSc;
+    }
+
+    public SocketChannel getServerControlSc() {
+        return serverControlSc;
+    }
+
+    public void setServerControlSc(SocketChannel serverControlSc) {
+        this.serverControlSc = serverControlSc;
+    }
+
     @Override
     public String toString() {
         return "PhoneController{" +
                 "serialNum='" + serialNum + '\'' +
+                ", port=" + port +
                 '}';
     }
 

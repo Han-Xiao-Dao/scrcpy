@@ -17,7 +17,7 @@ import dongdong.pivot.manager.PhoneManager;
 
 public class MainApp {
     private static final int PORT = 43735;
-    private static final ExecutorService SINGLE_THREAD_POOL = new ThreadPoolExecutor(8, 16, 30, TimeUnit.SECONDS, new LinkedBlockingQueue<>(1024), Executors.defaultThreadFactory(), new ThreadPoolExecutor.AbortPolicy());
+    public static final ExecutorService SINGLE_THREAD_POOL = new ThreadPoolExecutor(8, 16, 30, TimeUnit.SECONDS, new LinkedBlockingQueue<>(1024), Executors.defaultThreadFactory(), new ThreadPoolExecutor.AbortPolicy());
     private static boolean isRunning = true;
 
 
@@ -55,7 +55,7 @@ public class MainApp {
                         socketChannel.configureBlocking(false);
                         socketChannel.register(selector, SelectionKey.OP_READ);
                     } else if (key.isReadable()) {
-                        phoneManager.handleClient(key);
+                        phoneManager.handleRead(key);
                     }
                 }
             }
