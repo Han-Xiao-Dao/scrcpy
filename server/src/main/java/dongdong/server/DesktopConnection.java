@@ -46,25 +46,14 @@ public final class DesktopConnection implements Closeable {
     public static DesktopConnection open(Device device, boolean tunnelForward) throws IOException {
         LocalSocket videoSocket;
         LocalSocket controlSocket;
-        if (tunnelForward) {
-            LocalServerSocket localServerSocket = new LocalServerSocket(SOCKET_NAME);
+
+
+        try (LocalServerSocket localServerSocket = new LocalServerSocket(SOCKET_NAME)) {
+            videoSocket = localServerSocket.accept();
+            // send one byte so the client may read() to detect a connection error
+            videoSocket.getOutputStream().write(0);
             try {
-                videoSocket = localServerSocket.accept();
-                // send one byte so the client may read() to detect a connection error
-                videoSocket.getOutputStream().write(0);
-                try {
-                    controlSocket = localServerSocket.accept();
-                } catch (IOException | RuntimeException e) {
-                    videoSocket.close();
-                    throw e;
-                }
-            } finally {
-                localServerSocket.close();
-            }
-        } else {
-            videoSocket = connect(SOCKET_NAME);
-            try {
-                controlSocket = connect(SOCKET_NAME);
+                controlSocket = localServerSocket.accept();
             } catch (IOException | RuntimeException e) {
                 videoSocket.close();
                 throw e;

@@ -8,6 +8,8 @@ import java.io.FileDescriptor;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 
+import dongdong.util.Ln;
+
 public final class IO {
     private IO() {
         // not instantiable
@@ -18,6 +20,7 @@ public final class IO {
         // count the remaining bytes manually.
         // See <https://github.com/Genymobile/scrcpy/issues/291>.
         int remaining = from.remaining();
+
         while (remaining > 0) {
             try {
                 int w = Os.write(fd, from);

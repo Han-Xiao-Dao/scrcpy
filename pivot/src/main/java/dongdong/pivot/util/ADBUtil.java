@@ -1,4 +1,4 @@
-package dongdong.pivot;
+package dongdong.pivot.util;
 
 import java.io.IOException;
 
@@ -6,7 +6,9 @@ public class ADBUtil {
     private final static String ADB = System.getProperty("os.name").contains("Windows") ? "adb" : "~/bipartite/adb";
 
     public static Process executeCmd(String cmd) throws IOException {
-        return Runtime.getRuntime().exec(new String[]{ADB, cmd});
+        cmd = ADB + cmd;
+        System.out.println("execute cmd:  " + cmd);
+        return Runtime.getRuntime().exec(cmd);
     }
 
     public static Process adbForward(String phone, int port) throws IOException {
@@ -15,7 +17,7 @@ public class ADBUtil {
     }
 
     public static Process adbRemoveForward(String phone, int port) throws IOException {
-        String cmd = " -s " + phone + " forward remove " + port;
+        String cmd = " -s " + phone + " forward --remove tcp:" + port;
         return executeCmd(cmd);
     }
 

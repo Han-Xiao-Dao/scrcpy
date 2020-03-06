@@ -1,4 +1,4 @@
-package android.scrcpy;
+package android.scrcpy.ui.activity;
 
 import android.graphics.Rect;
 import android.media.MediaCodec;
@@ -6,6 +6,9 @@ import android.media.MediaCodecInfo;
 import android.media.MediaFormat;
 import android.os.Bundle;
 import android.os.SystemClock;
+import android.scrcpy.Controller;
+import android.scrcpy.R;
+import android.scrcpy.manager.ServerManager;
 import android.util.DisplayMetrics;
 import android.util.Log;
 import android.view.MotionEvent;
@@ -27,26 +30,25 @@ public class Main2Activity extends AppCompatActivity implements SurfaceHolder.Ca
     private static final int BYTES_LENGTH = 102400;
     private static final ByteBuffer BYTE_BUFFER = ByteBuffer.allocate(BYTES_LENGTH);
     private static final ByteBuffer HEADER_BUFFER = ByteBuffer.allocate(12);
-    private static final int PORT = 43735;
+
 
     private MediaCodec mCodec;
     private boolean isStart;
-    private String ipAddress;
+    private String phone;
     private MediaCodec.BufferInfo info;
     private SurfaceView mSurfaceView;
-    private SocketChannel controlSc;
-    private SocketChannel videoSc;
     private Controller controller;
+    private ServerManager serverManager = ServerManager.getInstance();
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-
-        ipAddress = getIntent().getStringExtra("ipAddress");
-        Ln.e("onCreate: " + ipAddress);
-        if (ipAddress == null) {
+        phone = getIntent().getStringExtra("phone");
+        Ln.e("onCreate: " + phone);
+        if (phone == null) {
             finish();
         }
+
         setContentView(R.layout.activity_main2);
 
         controller = new Controller();
@@ -67,7 +69,7 @@ public class Main2Activity extends AppCompatActivity implements SurfaceHolder.Ca
 
     private static MediaFormat createFormat(int width, int height) {
         MediaFormat format = MediaFormat.createVideoFormat(MediaFormat.MIMETYPE_VIDEO_AVC, width, height);
-        format.setInteger(MediaFormat.KEY_BIT_RATE, 8000000);
+        format.setInteger(MediaFormat.KEY_BIT_RATE, 2000000);
         format.setInteger(MediaFormat.KEY_FRAME_RATE, 60);
         format.setInteger(MediaFormat.KEY_COLOR_FORMAT, MediaCodecInfo.CodecCapabilities.COLOR_FormatSurface);
         format.setInteger(MediaFormat.KEY_I_FRAME_INTERVAL, 10);
@@ -83,6 +85,7 @@ public class Main2Activity extends AppCompatActivity implements SurfaceHolder.Ca
         if (y > mSurfaceView.getHeight()) {
             return false;
         }
+
         controller.sendTouchEvent((int) event.getX(), y, event.getAction());
         return false;
     }
@@ -101,57 +104,49 @@ public class Main2Activity extends AppCompatActivity implements SurfaceHolder.Ca
 
     private void connectServer(SurfaceHolder holder) {
         try {
-            videoSc = SocketChannel.open(new InetSocketAddress(ipAddress, PORT));
-            BYTE_BUFFER.clear();
-            BYTE_BUFFER.putInt(0);
+            SocketChannel videoSc = serverManager.getVideoSc();
+            byte[] bytes = phone.getBytes();
+            BYTE_BUFFER.putInt(bytes.length);
+            BYTE_BUFFER.put(bytes);
             BYTE_BUFFER.flip();
             videoSc.write(BYTE_BUFFER);
             BYTE_BUFFER.position(0);
-            BYTE_BUFFER.limit(4);
-            while (BYTE_BUFFER.hasRemaining()) {
-                videoSc.read(BYTE_BUFFER);
-            }
+            BYTE_BUFFER.limit(1);
+            videoSc.read(BYTE_BUFFER);
+
+            SocketChannel controlSc = serverManager.getControlSc();
+            controller.setControlSc(controlSc);
+            BYTE_BUFFER.clear();
+            BYTE_BUFFER.putInt(1);
+            BYTE_BUFFER.putInt(bytes.length);
+            BYTE_BUFFER.put(bytes);
             BYTE_BUFFER.flip();
-            int length = BYTE_BUFFER.getInt();
+            controlSc.write(BYTE_BUFFER);
+
             BYTE_BUFFER.position(0);
-            BYTE_BUFFER.limit(length);
-            while (BYTE_BUFFER.hasRemaining()) {
-                videoSc.read(BYTE_BUFFER);
+            BYTE_BUFFER.limit(68);
+            while (BYTE_BUFFER.remaining() > 0) {
+                Ln.d("listenSocket: " + "  " + videoSc.read(BYTE_BUFFER));
             }
             BYTE_BUFFER.flip();
-            Ln.d("connectServer: " + new String(BYTE_BUFFER.array(), 0, length));
 
+            Ln.d("listenSocket: " + new String(BYTE_BUFFER.array(), 0, 64, StandardCharsets.UTF_8));
+            int videoWidth = (BYTE_BUFFER.get(64) << 8) + (BYTE_BUFFER.get(65) & 0xff);
+            int videoHeight = (BYTE_BUFFER.get(66) << 8) + (BYTE_BUFFER.get(67) & 0xff);
 
-//            controlSc = SocketChannel.open();
-//            videoSc.connect(new InetSocketAddress(ipAddress, PORT));
-//            controlSc.connect(new InetSocketAddress(ipAddress, PORT));
-//            controlSc.configureBlocking(false);
-//            controller.setControlSc(controlSc);
-//
-//            BYTE_BUFFER.position(0);
-//            BYTE_BUFFER.limit(68);
-//            while (BYTE_BUFFER.remaining() > 0) {
-//                Log.d(TAG, "listenSocket: " + "  " + videoSc.read(BYTE_BUFFER));
-//            }
-//            BYTE_BUFFER.flip();
-//
-//            Log.d(TAG, "listenSocket: " + new String(BYTE_BUFFER.array(), 0, 64, StandardCharsets.UTF_8));
-//            int videoWidth = (BYTE_BUFFER.get(64) << 8) + (BYTE_BUFFER.get(65) & 0xff);
-//            int videoHeight = (BYTE_BUFFER.get(66) << 8) + (BYTE_BUFFER.get(67) & 0xff);
-//
-//            float mScaleValue = (float) controller.getmScreenWidth() / videoWidth;
-//            ViewGroup.LayoutParams lp = mSurfaceView.getLayoutParams();
-//            lp.height = (int) (videoHeight * mScaleValue);
-//            runOnUiThread(() -> mSurfaceView.setLayoutParams(lp));
-//            controller.setmScaleValue(mScaleValue);
-//            controller.setmVideoHeight(videoHeight);
-//            controller.setmVideoWidth(videoWidth);
-//
-//            MediaFormat mediaFormat = createFormat(videoWidth, videoHeight);
-//            mCodec.configure(mediaFormat, holder.getSurface(), null, 0);
-//            mCodec.start();
-//            new Thread(this::listenSocket).start();
-//            new Thread(this::decodeOutput).start();
+            float mScaleValue = (float) controller.getmScreenWidth() / videoWidth;
+            ViewGroup.LayoutParams lp = mSurfaceView.getLayoutParams();
+            lp.height = (int) (videoHeight * mScaleValue);
+            runOnUiThread(() -> mSurfaceView.setLayoutParams(lp));
+            controller.setmScaleValue(mScaleValue);
+            controller.setmVideoHeight(videoHeight);
+            controller.setmVideoWidth(videoWidth);
+
+            MediaFormat mediaFormat = createFormat(videoWidth, videoHeight);
+            mCodec.configure(mediaFormat, holder.getSurface(), null, 0);
+            mCodec.start();
+            new Thread(this::listenSocket).start();
+            new Thread(this::decodeOutput).start();
 
         } catch (IOException e) {
             Ln.e("connectServer: ", e);
@@ -165,7 +160,14 @@ public class Main2Activity extends AppCompatActivity implements SurfaceHolder.Ca
 
 
     private void listenSocket() {
-        SystemClock.sleep(10 * 1000L);
+        SocketChannel videoSc;
+        try {
+            videoSc = serverManager.getVideoSc();
+        } catch (IOException e) {
+            e.printStackTrace();
+            finish();
+            return;
+        }
         while (isStart) {
             try {
                 HEADER_BUFFER.clear();
@@ -185,7 +187,7 @@ public class Main2Activity extends AppCompatActivity implements SurfaceHolder.Ca
                     }
                     inputBuffer.clear();
                     int i = 0;
-
+                    Ln.d("packetSize");
                     while (i < packetSize) {
                         BYTE_BUFFER.position(0);
                         BYTE_BUFFER.limit(Math.min(packetSize - i, BYTES_LENGTH));
@@ -249,12 +251,5 @@ public class Main2Activity extends AppCompatActivity implements SurfaceHolder.Ca
             mCodec.stop();
         }
         isStart = false;
-        try {
-            videoSc.close();
-//            controlSc.close();
-        } catch (IOException e) {
-            Ln.e("finish: sssssssssssssssss");
-        }
-
     }
 }

@@ -1,8 +1,5 @@
 package android.scrcpy;
 
-import android.util.Log;
-import android.view.MotionEvent;
-
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.channels.SocketChannel;
@@ -40,7 +37,6 @@ public class Controller {
                     CONTROL_BUFFER.putShort((short) -1);
                     CONTROL_BUFFER.putInt(1);
                     CONTROL_BUFFER.flip();
-
                     controlSc.write(CONTROL_BUFFER);
                 }
             } catch (InterruptedException | IOException ignored) {
@@ -50,12 +46,14 @@ public class Controller {
     }
 
     public void sendTouchEvent(int x, int y, int action) {
+        Ln.d("a: " + x + " b: " + y + "  c: " + action);
         ControlMessage controlMessage = new ControlMessage();
         controlMessage.x = x;
         controlMessage.y = y;
         controlMessage.action = action;
         queue.add(controlMessage);
     }
+
 
 
     public SocketChannel getControlSc() {

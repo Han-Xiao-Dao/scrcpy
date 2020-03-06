@@ -17,45 +17,45 @@ import dongdong.pivot.manager.PhoneManager;
 
 public class MainApp {
     private static final int PORT = 43735;
-    public static final ExecutorService SINGLE_THREAD_POOL = new ThreadPoolExecutor(8, 16, 30, TimeUnit.SECONDS, new LinkedBlockingQueue<>(1024), Executors.defaultThreadFactory(), new ThreadPoolExecutor.AbortPolicy());
-    private static boolean isRunning = true;
+    public static final ExecutorService SINGLE_THREAD_POOL = new ThreadPoolExecutor(100, Integer.MAX_VALUE, 30, TimeUnit.SECONDS, new LinkedBlockingQueue<>(1024), Executors.defaultThreadFactory(), new ThreadPoolExecutor.AbortPolicy());
+    public static boolean isRunning = true;
 
 
     public static void main(String[] args) {
         PhoneManager phoneManager = new PhoneManager();
-
         Thread.setDefaultUncaughtExceptionHandler((thread, throwable) -> {
             isRunning = false;
+            throwable.printStackTrace();
             phoneManager.closeAll();
+            Runtime.getRuntime().exit(0);
         });
         SINGLE_THREAD_POOL.submit(() -> {
             while (isRunning) {
                 phoneManager.checkPhones();
-                System.out.println(phoneManager.PHONE_CONTROLLER_LIST);
                 Thread.sleep(5 * 1000);
             }
             return false;
         });
-        try (ServerSocketChannel ssc = SelectorProvider.provider().openServerSocketChannel()) {
-            ssc.configureBlocking(false);
+
+        try (Selector selector = SelectorProvider.provider().openSelector();
+             ServerSocketChannel ssc = SelectorProvider.provider().openServerSocketChannel()) {
             ssc.bind(new InetSocketAddress(PORT));
-            Selector selector = SelectorProvider.provider().openSelector();
+            ssc.configureBlocking(false);
             ssc.register(selector, SelectionKey.OP_ACCEPT);
             while (isRunning) {
-                int ready = selector.select();
-                if (ready <= 0) {
+                int selectCount = selector.select();
+                if (selectCount <= 0) {
                     continue;
                 }
-                Iterator<SelectionKey> it = selector.selectedKeys().iterator();
-                while (it.hasNext()) {
-                    SelectionKey key = it.next();
-                    it.remove();
-                    if (key.isAcceptable()) {
+                Iterator<SelectionKey> keyIterator = selector.selectedKeys().iterator();
+                while (keyIterator.hasNext()) {
+                    SelectionKey selectionKey = keyIterator.next();
+                    keyIterator.remove();
+                    if (selectionKey.isAcceptable()) {
                         SocketChannel socketChannel = ssc.accept();
-                        socketChannel.configureBlocking(false);
-                        socketChannel.register(selector, SelectionKey.OP_READ);
-                    } else if (key.isReadable()) {
-                        phoneManager.handleRead(key);
+                        phoneManager.handleAccept(socketChannel, selectionKey);
+                    } else if (selectionKey.isReadable()) {
+                        phoneManager.handleRead(selectionKey);
                     }
                 }
             }

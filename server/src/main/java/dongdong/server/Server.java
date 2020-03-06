@@ -6,6 +6,7 @@ import android.os.Build;
 
 import java.io.File;
 import java.io.IOException;
+import java.util.Arrays;
 
 import dongdong.util.Ln;
 
@@ -28,7 +29,7 @@ public final class Server {
 
                 // asynchronous
                 startController(controller);
-                startDeviceMessageSender(controller.getSender());
+//                startDeviceMessageSender(controller.getSender());
             }
 
             try {
@@ -84,7 +85,7 @@ public final class Server {
         int maxSize = (args.length < 2 ? 0 : Integer.parseInt(args[1])) & ~7;
         options.setMaxSize(maxSize);
 
-        int bitRate = args.length < 3 ? 8000000 : Integer.parseInt(args[2]);
+        int bitRate = args.length < 3 ? 2000000 : Integer.parseInt(args[2]);
         options.setBitRate(bitRate);
 
         int maxFps = args.length < 4 ? 0 : Integer.parseInt(args[3]);
@@ -143,12 +144,14 @@ public final class Server {
             }
         }
     }
+
     static {
         Ln.setTHRESHOLD(BuildConfig.DEBUG ? Ln.Level.DEBUG : Ln.Level.INFO);
         Ln.setLogPath(new File("/data/local/tmp/log"));
     }
 
     public static void main(String... args) throws Exception {
+        Ln.e("ssssssssssssss: " + Arrays.toString(args));
         Thread.setDefaultUncaughtExceptionHandler((t, e) -> {
             Ln.e("Exception on thread " + t, e);
             suggestFix(e);
