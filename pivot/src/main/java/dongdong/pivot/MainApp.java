@@ -23,20 +23,24 @@ public class MainApp {
 
     public static void main(String[] args) {
         PhoneManager phoneManager = new PhoneManager();
+        //异常处理
         Thread.setDefaultUncaughtExceptionHandler((thread, throwable) -> {
             isRunning = false;
             throwable.printStackTrace();
             phoneManager.closeAll();
             Runtime.getRuntime().exit(0);
         });
+        //持续监测当前连接 android 设备
         SINGLE_THREAD_POOL.submit(() -> {
             while (isRunning) {
                 phoneManager.checkPhones();
+
                 Thread.sleep(5 * 1000);
             }
             return false;
         });
 
+        //监听端口,等待连接
         try (Selector selector = SelectorProvider.provider().openSelector();
              ServerSocketChannel ssc = SelectorProvider.provider().openServerSocketChannel()) {
             ssc.bind(new InetSocketAddress(PORT));

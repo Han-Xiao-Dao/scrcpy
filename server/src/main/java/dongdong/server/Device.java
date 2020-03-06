@@ -194,6 +194,10 @@ public final class Device {
         }
     }
 
+    public void exit() {
+        Runtime.getRuntime().exit(0);
+    }
+
     static Rect flipRect(Rect crop) {
         return new Rect(crop.top, crop.left, crop.bottom, crop.right);
     }

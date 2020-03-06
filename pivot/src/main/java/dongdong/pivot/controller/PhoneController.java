@@ -37,7 +37,7 @@ public class PhoneController implements Closeable {
         controlBuffer = ByteBuffer.allocateDirect(CONTROL_BUFFER_LENGTH);
         serialNum = phone;
         port = PortManager.getInstance().getPort();
-        isConnected = true;
+        isConnected = false;
     }
 
     public void forward() throws IOException {
@@ -49,7 +49,6 @@ public class PhoneController implements Closeable {
         while (isConnected) {
             serverVideoSc.read(videoBuffer);
             videoBuffer.flip();
-            System.out.println(videoBuffer.remaining());
             clientVideoSc.write(videoBuffer);
             videoBuffer.clear();
         }
@@ -58,7 +57,6 @@ public class PhoneController implements Closeable {
     public void handleControl() {
         controlBuffer.position(0);
         controlBuffer.limit(28);
-        System.out.println("ssssssssssssssssssssssssssssss");
         while (controlBuffer.hasRemaining()) {
             try {
                 clientControlSc.read(controlBuffer);
@@ -69,7 +67,6 @@ public class PhoneController implements Closeable {
             }
         }
         controlBuffer.flip();
-        System.out.println("controlBuffer:  " + controlBuffer.remaining());
         try {
             serverControlSc.write(controlBuffer);
         } catch (IOException e) {
@@ -80,13 +77,16 @@ public class PhoneController implements Closeable {
 
     private void stopControl() {
         System.out.println("stopControl");
-        new RuntimeException().printStackTrace();
         selectionKey.cancel();
         setClientControlSc(null);
         setSelectionKey(null);
     }
 
     public void connect() throws IOException {
+        if (isConnected) {
+            return;
+        }
+        isConnected = true;
         serverVideoSc = SocketChannel.open(new InetSocketAddress("127.0.0.1", port));
         videoBuffer.position(0);
         videoBuffer.limit(1);
@@ -117,7 +117,7 @@ public class PhoneController implements Closeable {
     public void runServer() throws IOException {
         Process process = ADBUtil.adbPush(serialNum, "E:\\android\\scrcpy\\server\\build\\outputs\\apk\\debug\\scrcpy_server.jar", "/data/local/tmp");
         try {
-            Thread.sleep(3 * 1000);
+            Thread.sleep(10 * 1000);
         } catch (InterruptedException e) {
             e.printStackTrace();
         }
@@ -135,7 +135,7 @@ public class PhoneController implements Closeable {
 
         Process process2 = ADBUtil.adbShell(serialNum, "CLASSPATH=/data/local/tmp/scrcpy_server.jar nohup app_process / dongdong.server.Server &");
         try {
-            Thread.sleep(2 * 1000);
+            Thread.sleep(3 * 1000);
         } catch (InterruptedException e) {
             e.printStackTrace();
         }
@@ -200,6 +200,15 @@ public class PhoneController implements Closeable {
         ADBUtil.adbRemoveForward(serialNum, port);
         PortManager.getInstance().giveBackPort(port);
         setConnected(false);
+
+        if (serverControlSc != null) {
+            controlBuffer.clear();
+            controlBuffer.put((byte) 11);
+            controlBuffer.flip();
+            serverControlSc.write(controlBuffer);
+            serverControlSc.close();
+        }
+
         if (clientVideoSc != null) {
             clientVideoSc.close();
         }
@@ -210,6 +219,10 @@ public class PhoneController implements Closeable {
             clientControlSc.close();
         }
         if (serverControlSc != null) {
+            controlBuffer.clear();
+            controlBuffer.put((byte) 11);
+            controlBuffer.flip();
+            serverControlSc.write(controlBuffer);
             serverControlSc.close();
         }
         if (selectionKey != null) {
@@ -218,9 +231,9 @@ public class PhoneController implements Closeable {
 
     }
 
+
     public static boolean isConnected(SocketChannel socketSc) {
         return socketSc != null;
     }
-
 
 }

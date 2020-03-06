@@ -79,6 +79,7 @@ public class ControlMessageReader {
             case ControlMessage.TYPE_COLLAPSE_NOTIFICATION_PANEL:
             case ControlMessage.TYPE_GET_CLIPBOARD:
             case ControlMessage.TYPE_ROTATE_DEVICE:
+            case ControlMessage.TYPE_END_GAME:
                 msg = ControlMessage.createEmpty(type);
                 break;
             default:

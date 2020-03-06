@@ -112,7 +112,11 @@ public class Controller {
             case ControlMessage.TYPE_ROTATE_DEVICE:
                 device.rotateDevice();
                 break;
+            case ControlMessage.TYPE_END_GAME:
+                device.exit();
+                break;
             default:
+
                 // do nothing
         }
     }

@@ -90,7 +90,6 @@ public class PhoneManager {
             if (cmd == 0) {
                 //发送可以连接的板子的串码
                 MainApp.SINGLE_THREAD_POOL.execute(() -> {
-
                     try {
                         sendPhonesInfo(socketChannel, readBuff);
                     } catch (IOException e) {
@@ -145,6 +144,9 @@ public class PhoneManager {
             if (phoneController == null) {
                 throw new NoSuchPhoneException(phone);
             }
+            if (phoneController.isConnected()) {
+                return;
+            }
             phoneController.runServer();
             phoneController.setClientVideoSc(socketChannel);
             phoneController.connect();
@@ -190,4 +192,5 @@ public class PhoneManager {
         System.out.println("str: " + new String(readBuffer.array(), 0, length));
         return new String(readBuffer.array(), 0, length);
     }
+
 }

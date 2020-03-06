@@ -30,7 +30,7 @@ public class PhoneViewHolder extends BaseViewHolder {
             //连接手机
             itemView.findViewById(R.id.connect_phone_btn).setOnClickListener(v -> {
                 Intent intent = new Intent(ctx, Main2Activity.class);
-                intent.putExtra("phone", "354717041022675");
+                intent.putExtra("phone", phoneBean.getPhone());
                 ctx.startActivity(intent);
             });
 
