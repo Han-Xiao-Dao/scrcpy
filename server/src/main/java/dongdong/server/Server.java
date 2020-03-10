@@ -12,7 +12,7 @@ import dongdong.util.Ln;
 
 public final class Server {
 
-    private static final String SERVER_PATH = "/data/local/tmp/scrcpy-server.jar";
+    private static final String SERVER_PATH = "/data/local/tmp/scrcpy_server.jar";
 
     private Server() {
         // not instantiable

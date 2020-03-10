@@ -24,6 +24,7 @@ public class Controller {
     private final KeyCharacterMap charMap = KeyCharacterMap.load(KeyCharacterMap.VIRTUAL_KEYBOARD);
 
     private long lastTouchDown;
+    private long cliLastTouchDown;
     private final PointersState pointersState = new PointersState();
     private final MotionEvent.PointerProperties[] pointerProperties = new MotionEvent.PointerProperties[PointersState.MAX_POINTERS];
     private final MotionEvent.PointerCoords[] pointerCoords = new MotionEvent.PointerCoords[PointersState.MAX_POINTERS];
@@ -76,7 +77,6 @@ public class Controller {
 
     private void handleEvent() throws IOException {
         ControlMessage msg = connection.receiveControlMessage();
-        Ln.d("sssss;  " + msg);
         switch (msg.getType()) {
             case ControlMessage.TYPE_INJECT_KEYCODE:
                 injectKeycode(msg.getAction(), msg.getKeycode(), msg.getMetaState());
@@ -85,7 +85,7 @@ public class Controller {
                 injectText(msg.getText());
                 break;
             case ControlMessage.TYPE_INJECT_TOUCH_EVENT:
-                injectTouch(msg.getAction(), msg.getPointerId(), msg.getPosition(), msg.getPressure(), msg.getButtons());
+                injectTouch(msg.getAction(), msg.getPointerId(), msg.getPosition(), msg.getPressure(), msg.getButtons(), msg.getEventTime());
                 break;
             case ControlMessage.TYPE_INJECT_SCROLL_EVENT:
                 injectScroll(msg.getPosition(), msg.getHScroll(), msg.getVScroll());
@@ -152,7 +152,7 @@ public class Controller {
         return successCount;
     }
 
-    private boolean injectTouch(int action, long pointerId, Position position, float pressure, int buttons) {
+    private boolean injectTouch(int action, long pointerId, Position position, float pressure, int buttons, long eventTime) {
         long now = SystemClock.uptimeMillis();
 
         Point point = device.getPhysicalPoint(position);
@@ -176,9 +176,12 @@ public class Controller {
         if (pointerCount == 1) {
             if (action == MotionEvent.ACTION_DOWN) {
                 lastTouchDown = now;
+                cliLastTouchDown = eventTime;
             }
         } else {
             // secondary pointers must use ACTION_POINTER_* ORed with the pointerIndex
+
+            now = now - (eventTime - cliLastTouchDown);
             if (action == MotionEvent.ACTION_UP) {
                 action = MotionEvent.ACTION_POINTER_UP | (pointerIndex << MotionEvent.ACTION_POINTER_INDEX_SHIFT);
             } else if (action == MotionEvent.ACTION_DOWN) {

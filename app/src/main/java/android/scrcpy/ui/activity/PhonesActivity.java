@@ -27,7 +27,6 @@ public class PhonesActivity extends AppCompatActivity {
     private ServerManager serverManager;
     private ByteBuffer byteBuffer;
     private List<RecyclerViewData> mDatas;
-    private RecyclerView phoneInfoList;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -42,45 +41,35 @@ public class PhonesActivity extends AppCompatActivity {
         setContentView(R.layout.activity_phones);
         byteBuffer = ByteBuffer.allocate(1024);
         mDatas = new ArrayList<>();
-
-        for (int i = 0; i < 10; i++) {
-            PhoneBean phoneBean = new PhoneBean();
-            phoneBean.setPhone("杨安奇是猪");
-            mDatas.add(new RecyclerViewData<>(phoneBean, Collections.singletonList(phoneBean), false));
-        }
         phoneAdapter = new PhoneAdapter(this, mDatas);
 
-        phoneInfoList = findViewById(R.id.phone_list);
+        RecyclerView phoneInfoList = findViewById(R.id.phone_list);
         LinearLayoutManager layoutManager = new LinearLayoutManager(this);
         phoneInfoList.setLayoutManager(layoutManager);
         phoneInfoList.addItemDecoration(new DividerItemDecoration(this, DividerItemDecoration.VERTICAL));
         phoneInfoList.setAdapter(phoneAdapter);
-
 
         new Thread(this::loadPhones).start();
     }
 
     private void loadPhones() {
         try {
-            SocketChannel videoSc = serverManager.getVideoSc();
-            Ln.d("connect over");
+            SocketChannel controlSc = serverManager.getControlSc();
             byteBuffer.clear();
-            byteBuffer.putInt(0);
+            byteBuffer.putInt(2);
             byteBuffer.flip();
-            videoSc.write(byteBuffer);
+            controlSc.write(byteBuffer);
             byteBuffer.position(0);
             byteBuffer.limit(4);
-            Ln.d("read aaaaaaaaaaaaaaa");
             while (byteBuffer.hasRemaining()) {
-                videoSc.read(byteBuffer);
+                controlSc.read(byteBuffer);
             }
             byteBuffer.flip();
             int length = byteBuffer.getInt();
             byteBuffer.position(0);
             byteBuffer.limit(length);
-            Ln.d("read ssssssssssssssssssssss");
             while (byteBuffer.hasRemaining()) {
-                videoSc.read(byteBuffer);
+                controlSc.read(byteBuffer);
             }
             byteBuffer.flip();
             String phonesStr = new String(byteBuffer.array(), 0, length);
@@ -91,7 +80,7 @@ public class PhonesActivity extends AppCompatActivity {
                 phoneBean.setPhone(phoneNum);
                 mDatas.add(new RecyclerViewData<>(phoneBean, Collections.singletonList(phoneBean), false));
             }
-            runOnUiThread(phoneAdapter::notifyDataSetChanged);
+            runOnUiThread(phoneAdapter::notifyRecyclerViewData);
             Ln.e("ok");
         } catch (IOException e) {
             Ln.e("errpr", e);

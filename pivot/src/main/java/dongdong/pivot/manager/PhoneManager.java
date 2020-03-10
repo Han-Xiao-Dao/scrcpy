@@ -7,21 +7,27 @@ import java.nio.BufferUnderflowException;
 import java.nio.ByteBuffer;
 import java.nio.channels.SelectionKey;
 import java.nio.channels.SocketChannel;
-import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Vector;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 
 import dongdong.pivot.MainApp;
+import dongdong.pivot.controller.PhoneController;
 import dongdong.pivot.exception.NoSuchPhoneException;
 import dongdong.pivot.util.ADBUtil;
-import dongdong.pivot.controller.PhoneController;
 
 public class PhoneManager {
-    public final List<PhoneController> PHONE_CONTROLLER_LIST = new Vector<>();
-    public final Map<String, PhoneController> PHONE_CONTROLLER_MAP = new HashMap<>();
+    private static final int TYPE_CLOSE = 0;
+    private static final int TYPE_INPUT = 1;
+    private static final int TYPE_PHONE_INFO = 2;
+    private static final int TYPE_CONNECT = 3;
+
+    private final List<PhoneController> PHONE_CONTROLLER_LIST = new Vector<>();
+    private final Map<String, PhoneController> PHONE_CONTROLLER_MAP = new ConcurrentHashMap<>();
+    private final ByteBuffer buffer = ByteBuffer.allocate(1024);
 
     public void checkPhones() {
         try {
@@ -68,44 +74,44 @@ public class PhoneManager {
         }
     }
 
-    public void closeAll() {
+    public void checkConnect() {
         for (PhoneController phoneController : PHONE_CONTROLLER_LIST) {
-            try {
-                phoneController.close();
-            } catch (IOException e) {
-                e.printStackTrace();
+            if (phoneController.isConnected()) {
+                phoneController.checkConnect();
             }
         }
     }
 
+    public void closeAll() {
+        for (PhoneController phoneController : PHONE_CONTROLLER_LIST) {
+            phoneController.close();
+        }
+    }
+
+    /**
+     * 响应客户端的连接,并且区分是视频连接还是注册socket监听
+     */
     public void handleAccept(SocketChannel socketChannel, SelectionKey selectionKey) {
-        ByteBuffer readBuff = ByteBuffer.allocate(1024);
-        int cmd;
+
         try {
-            readBuff.position(0);
-            readBuff.limit(4);
-            socketChannel.read(readBuff);
-            readBuff.flip();
-            cmd = readBuff.getInt();
+            int cmd = readInt(socketChannel);
             if (cmd == 0) {
                 //发送可以连接的板子的串码
+                String phone = readStr(socketChannel);
                 MainApp.SINGLE_THREAD_POOL.execute(() -> {
-                    try {
-                        sendPhonesInfo(socketChannel, readBuff);
-                    } catch (IOException e) {
-                        e.printStackTrace();
-                        try {
-                            socketChannel.close();
-                        } catch (IOException ignored) {
-                        }
-                        return;
-                    }
                     //连接板子
-                    connectPhone(socketChannel, readBuff);
+                    connectPhone(socketChannel, phone);
                 });
-            } else {
-                //连接板子控制器
-                connectController(socketChannel, readBuff, selectionKey);
+            } else if (cmd == 1) {
+                //注册选择器
+                socketChannel.configureBlocking(false);
+                try {
+                    socketChannel.register(selectionKey.selector(), SelectionKey.OP_READ);
+                } catch (Throwable e) {
+                    e.printStackTrace();
+                }
+            } else if (cmd < 0) {
+                selectionKey.cancel();
             }
         } catch (IOException | BufferUnderflowException | NoSuchPhoneException e) {
             e.printStackTrace();
@@ -113,84 +119,132 @@ public class PhoneManager {
     }
 
     public void handleRead(SelectionKey selectionKey) {
+        SocketChannel channel = (SocketChannel) selectionKey.channel();
+        int type;
+        try {
+            type = readInt(channel);
+        } catch (IOException e) {
+            e.printStackTrace();
+            selectionKey.cancel();
+            return;
+        }
+        if (type < 0) {
+            selectionKey.cancel();
+            return;
+        }
+        switch (type) {
+            case TYPE_CLOSE:
+                PhoneController phoneController = (PhoneController) selectionKey.attachment();
+                phoneController.setConnected(false);
+                break;
+            case TYPE_INPUT:
+                handleControl(selectionKey);
+                break;
+            case TYPE_PHONE_INFO:
+                handlePhonesInfo(channel);
+                break;
+            case TYPE_CONNECT:
+                handleConnect(selectionKey, channel);
+            default:
+                break;
+        }
+    }
+
+
+    private void handleControl(SelectionKey selectionKey) {
         PhoneController phoneController = (PhoneController) selectionKey.attachment();
         phoneController.handleControl();
     }
 
-    private void sendPhonesInfo(SocketChannel socketChannel, ByteBuffer readBuff) throws IOException {
+    private void handlePhonesInfo(SocketChannel socketChannel) {
         StringBuilder sb = new StringBuilder();
         for (PhoneController controller : PHONE_CONTROLLER_LIST) {
             sb.append(controller.getSerialNum()).append(",");
         }
-        readBuff.clear();
+        buffer.clear();
         System.out.println("phones:  " + sb);
         byte[] bytes = sb.toString().getBytes();
-        readBuff.putInt(bytes.length);
-        readBuff.put(bytes);
-        readBuff.flip();
-        socketChannel.write(readBuff);
-
+        buffer.putInt(bytes.length);
+        buffer.put(bytes);
+        buffer.flip();
+        try {
+            socketChannel.write(buffer);
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
     }
 
-    private void connectPhone(SocketChannel socketChannel, ByteBuffer readBuffer) {
+    private void handleConnect(SelectionKey selectionKey, SocketChannel channel) {
         String phone;
         try {
-            phone = readStr(socketChannel, readBuffer);
+            phone = readStr(channel);
         } catch (IOException e) {
             e.printStackTrace();
             return;
         }
-        try (PhoneController phoneController = PHONE_CONTROLLER_MAP.get(phone)) {
-            if (phoneController == null) {
-                throw new NoSuchPhoneException(phone);
-            }
-            if (phoneController.isConnected()) {
-                return;
-            }
-            phoneController.runServer();
-            phoneController.setClientVideoSc(socketChannel);
-            phoneController.connect();
-            phoneController.forward();
-        } catch (IOException e) {
-            e.printStackTrace();
+        PhoneController controller = PHONE_CONTROLLER_MAP.get(phone);
+        if (controller == null) {
+            return;
         }
-
-
+        selectionKey.attach(controller);
+        controller.setSelectionKey(selectionKey);
+        controller.setClientControlSc(channel);
     }
 
-    private void connectController(SocketChannel channel, ByteBuffer readBuffer, SelectionKey selectionKey) throws IOException {
-        String phone = readStr(channel, readBuffer);
-        PhoneController phoneController = PHONE_CONTROLLER_MAP.get(phone);
-        if (phoneController == null) {
-            throw new NoSuchPhoneException(phone);
-        }
-        channel.configureBlocking(false);
+    private void connectPhone(SocketChannel socketChannel, String phone) {
         try {
-            SelectionKey key = channel.register(selectionKey.selector(), SelectionKey.OP_READ, phoneController);
-            phoneController.setSelectionKey(key);
+            PhoneController phoneController = PHONE_CONTROLLER_MAP.get(phone);
+            if (phoneController == null) {
+                socketChannel.close();
+                return;
+            }
+            if (phoneController.isConnected()) {
+                socketChannel.close();
+                return;
+            }
+
+            try {
+                phoneController.runServer();
+                phoneController.setClientVideoSc(socketChannel);
+                phoneController.connect();
+                phoneController.forward();
+            } finally {
+                phoneController.close();
+            }
+
+
         } catch (Throwable e) {
             e.printStackTrace();
         }
-        phoneController.setClientControlSc(channel);
+
+
     }
 
-    private String readStr(SocketChannel socketChannel, ByteBuffer readBuffer) throws IOException {
-        readBuffer.position(0);
-        readBuffer.limit(4);
-        while (readBuffer.hasRemaining()) {
-            socketChannel.read(readBuffer);
-        }
-
-        readBuffer.flip();
-        int length = readBuffer.getInt();
+    private String readStr(SocketChannel socketChannel) throws IOException {
+        int length = readInt(socketChannel);
         System.out.println("length: " + length);
-        readBuffer.position(0);
-        readBuffer.limit(length);
-        while (readBuffer.hasRemaining()) {
-            socketChannel.read(readBuffer);
+        buffer.position(0);
+        buffer.limit(length);
+        while (buffer.hasRemaining()) {
+            if (socketChannel.read(buffer) == -1) {
+                return null;
+            }
         }
-        System.out.println("str: " + new String(readBuffer.array(), 0, length));
-        return new String(readBuffer.array(), 0, length);
+        System.out.println("str: " + new String(buffer.array(), 0, length));
+        return new String(buffer.array(), 0, length);
+    }
+
+    private int readInt(SocketChannel socketChannel) throws IOException {
+        buffer.position(0);
+        buffer.limit(4);
+        while (buffer.hasRemaining()) {
+            int i = socketChannel.read(buffer);
+            if (i == -1) {
+                return -1;
+            }
+        }
+        buffer.flip();
+        return buffer.getInt();
     }
 
 }

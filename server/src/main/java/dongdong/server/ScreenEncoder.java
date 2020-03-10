@@ -132,7 +132,6 @@ public class ScreenEncoder implements Device.RotationListener {
 
         headerBuffer.putLong(pts);
         headerBuffer.putInt(packetSize);
-        Ln.d("sssssssssssss:  " + packetSize);
         headerBuffer.flip();
         IO.writeFully(fd, headerBuffer);
     }

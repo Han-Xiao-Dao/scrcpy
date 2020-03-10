@@ -6,18 +6,16 @@ import android.media.MediaCodecInfo;
 import android.media.MediaFormat;
 import android.os.Bundle;
 import android.os.SystemClock;
-import android.scrcpy.Controller;
+import android.scrcpy.manager.Controller;
 import android.scrcpy.R;
 import android.scrcpy.manager.ServerManager;
 import android.util.DisplayMetrics;
-import android.util.Log;
 import android.view.MotionEvent;
 import android.view.SurfaceHolder;
 import android.view.SurfaceView;
 import android.view.ViewGroup;
 
 import java.io.IOException;
-import java.net.InetSocketAddress;
 import java.nio.ByteBuffer;
 import java.nio.channels.SocketChannel;
 import java.nio.charset.StandardCharsets;
@@ -117,7 +115,7 @@ public class Main2Activity extends AppCompatActivity implements SurfaceHolder.Ca
             SocketChannel controlSc = serverManager.getControlSc();
             controller.setControlSc(controlSc);
             BYTE_BUFFER.clear();
-            BYTE_BUFFER.putInt(1);
+            BYTE_BUFFER.putInt(3);
             BYTE_BUFFER.putInt(bytes.length);
             BYTE_BUFFER.put(bytes);
             BYTE_BUFFER.flip();

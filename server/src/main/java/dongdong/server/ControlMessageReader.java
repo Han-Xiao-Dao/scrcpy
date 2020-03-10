@@ -138,7 +138,8 @@ public class ControlMessageReader {
         // convert it to a float between 0 and 1 (0x1p16f is 2^16 as float)
         float pressure = pressureInt == 0xffff ? 1f : (pressureInt / 0x1p16f);
         int buttons = buffer.getInt();
-        return ControlMessage.createInjectTouchEvent(action, pointerId, position, pressure, buttons);
+        long eventTime = buffer.getLong();
+        return ControlMessage.createInjectTouchEvent(action, pointerId, position, pressure, buttons, eventTime);
     }
 
     private ControlMessage parseInjectScrollEvent() {

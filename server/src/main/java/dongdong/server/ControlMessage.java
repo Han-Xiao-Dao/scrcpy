@@ -29,6 +29,7 @@ public final class ControlMessage {
     private Position position;
     private int hScroll;
     private int vScroll;
+    private long eventTime;
 
     private ControlMessage() {
     }
@@ -49,7 +50,7 @@ public final class ControlMessage {
         return msg;
     }
 
-    public static ControlMessage createInjectTouchEvent(int action, long pointerId, Position position, float pressure, int buttons) {
+    public static ControlMessage createInjectTouchEvent(int action, long pointerId, Position position, float pressure, int buttons, long eventTime) {
         ControlMessage msg = new ControlMessage();
         msg.type = TYPE_INJECT_TOUCH_EVENT;
         msg.action = action;
@@ -57,6 +58,7 @@ public final class ControlMessage {
         msg.pressure = pressure;
         msg.position = position;
         msg.buttons = buttons;
+        msg.eventTime = eventTime;
         return msg;
     }
 
@@ -134,6 +136,10 @@ public final class ControlMessage {
 
     public int getVScroll() {
         return vScroll;
+    }
+
+    public long getEventTime() {
+        return eventTime;
     }
 
     @Override

@@ -5,6 +5,7 @@ import java.io.Closeable;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.net.InetSocketAddress;
+import java.nio.BufferUnderflowException;
 import java.nio.ByteBuffer;
 import java.nio.channels.SelectionKey;
 import java.nio.channels.Selector;
@@ -18,7 +19,7 @@ import dongdong.pivot.manager.PortManager;
 public class PhoneController implements Closeable {
 
     private static final int VIDEO_BUFFER_LENGTH = 10240;
-    private static final int CONTROL_BUFFER_LENGTH = 30;
+    private static final int CONTROL_BUFFER_LENGTH = 40;
 
     private final ByteBuffer videoBuffer;
     private final ByteBuffer controlBuffer;
@@ -28,6 +29,11 @@ public class PhoneController implements Closeable {
     private SocketChannel serverControlSc;
 
     private SelectionKey selectionKey;
+
+    public boolean isConnected() {
+        return isConnected;
+    }
+
     private boolean isConnected;
     private final String serialNum;
     private final int port;
@@ -38,49 +44,65 @@ public class PhoneController implements Closeable {
         serialNum = phone;
         port = PortManager.getInstance().getPort();
         isConnected = false;
+//        pushServer();
     }
 
-    public void forward() throws IOException {
-        videoBuffer.clear();
-        videoBuffer.put((byte) 0);
-        videoBuffer.flip();
-        clientVideoSc.write(videoBuffer);
-        videoBuffer.clear();
-        while (isConnected) {
-            serverVideoSc.read(videoBuffer);
-            videoBuffer.flip();
-            clientVideoSc.write(videoBuffer);
-            videoBuffer.clear();
-        }
-    }
+    public void runServer() throws IOException {
 
-    public void handleControl() {
-        controlBuffer.position(0);
-        controlBuffer.limit(28);
-        while (controlBuffer.hasRemaining()) {
-            try {
-                clientControlSc.read(controlBuffer);
-            } catch (IOException e) {
-                e.printStackTrace();
-                stopControl();
-                return;
-            }
-        }
-        controlBuffer.flip();
+        pushServer();
+
+        Process process1 = ADBUtil.adbForward(serialNum, port);
         try {
-            serverControlSc.write(controlBuffer);
+            process1.waitFor(2, TimeUnit.SECONDS);
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        }
+        process1.destroy();
+
+        startServer();
+
+    }
+
+    private void pushServer() throws IOException {
+        Process process = ADBUtil.adbPush(serialNum, "E:\\android\\scrcpy\\server\\build\\outputs\\apk\\debug\\scrcpy_server.jar", "/data/local/tmp");
+        try {
+            process.waitFor(10, TimeUnit.SECONDS);
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        }
+        process.destroy();
+
+    }
+
+    private void startServer() throws IOException {
+        do {
+            Process process2 = ADBUtil.adbShell(serialNum, "CLASSPATH=/data/local/tmp/scrcpy_server.jar nohup app_process / dongdong.server.Server &");
+            try {
+                process2.waitFor(5, TimeUnit.SECONDS);
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+            }
+            process2.destroy();
+        } while (isNull(ADBUtil.adbGetPid(serialNum, "app_process")));
+    }
+
+    public void checkConnect() {
+        ByteBuffer buffer = ByteBuffer.allocate(1);
+        buffer.put((byte) 0);
+        buffer.flip();
+        try {
+            clientControlSc.write(buffer);
         } catch (IOException e) {
             e.printStackTrace();
-            stopControl();
+            setConnected(false);
         }
     }
 
-    private void stopControl() {
-        System.out.println("stopControl");
-        selectionKey.cancel();
-        setClientControlSc(null);
-        setSelectionKey(null);
+    private boolean isNull(String s) {
+        System.out.println(s);
+        return s == null || "".equals(s.trim());
     }
+
 
     public void connect() throws IOException {
         if (isConnected) {
@@ -96,91 +118,55 @@ public class PhoneController implements Closeable {
         videoBuffer.clear();
         serverControlSc = SocketChannel.open(new InetSocketAddress("127.0.0.1", port));
 
+        videoBuffer.clear();
+        videoBuffer.put((byte) 0);
+        videoBuffer.flip();
+        clientVideoSc.write(videoBuffer);
+        videoBuffer.clear();
+    }
+
+    public void forward() throws IOException {
+        while (isConnected) {
+            serverVideoSc.read(videoBuffer);
+            videoBuffer.flip();
+            clientVideoSc.write(videoBuffer);
+            videoBuffer.clear();
+        }
+    }
+
+    public void handleControl() {
+        try {
+            controlBuffer.position(0);
+            controlBuffer.limit(36);
+            while (controlBuffer.hasRemaining()) {
+                if (clientControlSc.read(controlBuffer) == -1) {
+                    setConnected(false);
+                    return;
+                }
+            }
+            controlBuffer.flip();
+            serverControlSc.write(controlBuffer);
+        } catch (IOException | BufferUnderflowException e) {
+            e.printStackTrace();
+            setConnected(false);
+        }
+
     }
 
     public String getSerialNum() {
         return serialNum;
     }
 
-    public boolean isConnected() {
-        return isConnectedServer() && isConnectedClient();
-    }
-
-    public boolean isConnectedServer() {
-        return isConnected(serverControlSc) && isConnected(serverVideoSc);
-    }
-
-    public boolean isConnectedClient() {
-        return isConnected(clientControlSc) && isConnected(clientVideoSc);
-    }
-
-    public void runServer() throws IOException {
-        Process process = ADBUtil.adbPush(serialNum, "E:\\android\\scrcpy\\server\\build\\outputs\\apk\\debug\\scrcpy_server.jar", "/data/local/tmp");
-        try {
-            Thread.sleep(10 * 1000);
-        } catch (InterruptedException e) {
-            e.printStackTrace();
-        }
-        process.destroy();
-
-
-        Process process1 = ADBUtil.adbForward(serialNum, port);
-        try {
-            Thread.sleep(2 * 1000);
-        } catch (InterruptedException e) {
-            e.printStackTrace();
-        }
-        process1.destroy();
-
-
-        Process process2 = ADBUtil.adbShell(serialNum, "CLASSPATH=/data/local/tmp/scrcpy_server.jar nohup app_process / dongdong.server.Server &");
-        try {
-            Thread.sleep(3 * 1000);
-        } catch (InterruptedException e) {
-            e.printStackTrace();
-        }
-        process2.destroy();
-    }
-
-    public SocketChannel getClientVideoSc() {
-        return clientVideoSc;
-    }
-
     public void setClientVideoSc(SocketChannel clientVideoSc) {
         this.clientVideoSc = clientVideoSc;
-    }
-
-    public SocketChannel getServerVideoSc() {
-        return serverVideoSc;
-    }
-
-    public void setServerVideoSc(SocketChannel serverVideoSc) {
-        this.serverVideoSc = serverVideoSc;
-    }
-
-    public SocketChannel getClientControlSc() {
-        return clientControlSc;
     }
 
     public void setClientControlSc(SocketChannel clientControlSc) {
         this.clientControlSc = clientControlSc;
     }
 
-    public SocketChannel getServerControlSc() {
-        return serverControlSc;
-    }
-
-    public void setServerControlSc(SocketChannel serverControlSc) {
-        this.serverControlSc = serverControlSc;
-    }
-
     public void setConnected(boolean connected) {
         isConnected = connected;
-    }
-
-
-    public SelectionKey getSelectionKey() {
-        return selectionKey;
     }
 
     public void setSelectionKey(SelectionKey selectionKey) {
@@ -196,44 +182,51 @@ public class PhoneController implements Closeable {
     }
 
     @Override
-    public void close() throws IOException {
-        ADBUtil.adbRemoveForward(serialNum, port);
+    public void close() {
+        try {
+            Process process = ADBUtil.adbRemoveForward(serialNum, port);
+            process.waitFor(2, TimeUnit.SECONDS);
+            process.destroy();
+        } catch (IOException | InterruptedException e) {
+            e.printStackTrace();
+        }
         PortManager.getInstance().giveBackPort(port);
         setConnected(false);
+        controlBuffer.clear();
+        videoBuffer.clear();
 
         if (serverControlSc != null) {
             controlBuffer.clear();
             controlBuffer.put((byte) 11);
             controlBuffer.flip();
-            serverControlSc.write(controlBuffer);
-            serverControlSc.close();
+            try {
+                serverControlSc.write(controlBuffer);
+                serverControlSc.close();
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+        }
+
+        if (serverVideoSc != null) {
+            try {
+                serverVideoSc.close();
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
         }
 
         if (clientVideoSc != null) {
-            clientVideoSc.close();
+            try {
+                clientVideoSc.close();
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
         }
-        if (serverVideoSc != null) {
-            serverVideoSc.close();
-        }
-        if (clientControlSc != null) {
-            clientControlSc.close();
-        }
-        if (serverControlSc != null) {
-            controlBuffer.clear();
-            controlBuffer.put((byte) 11);
-            controlBuffer.flip();
-            serverControlSc.write(controlBuffer);
-            serverControlSc.close();
-        }
+
         if (selectionKey != null) {
             selectionKey.cancel();
         }
 
-    }
-
-
-    public static boolean isConnected(SocketChannel socketSc) {
-        return socketSc != null;
     }
 
 }

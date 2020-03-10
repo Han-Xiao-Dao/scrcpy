@@ -9,7 +9,4 @@ public class Application extends android.app.Application {
         Ln.setLogPath(getExternalFilesDir("log"));
         Ln.setTHRESHOLD(BuildConfig.DEBUG ? Ln.Level.DEBUG : Ln.Level.INFO);
     }
-
-
-
 }

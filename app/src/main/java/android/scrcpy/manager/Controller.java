@@ -1,4 +1,6 @@
-package android.scrcpy;
+package android.scrcpy.manager;
+
+import android.os.SystemClock;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -25,6 +27,7 @@ public class Controller {
                 while (true) {
                     ControlMessage controlMessage = queue.take();
                     CONTROL_BUFFER.clear();
+                    CONTROL_BUFFER.putInt(1);
                     CONTROL_BUFFER.put((byte) TYPE_INJECT_TOUCH_EVENT);
                     CONTROL_BUFFER.put((byte) controlMessage.action);
                     CONTROL_BUFFER.putLong(-1);
@@ -36,6 +39,7 @@ public class Controller {
                     CONTROL_BUFFER.putShort((short) mVideoHeight);
                     CONTROL_BUFFER.putShort((short) -1);
                     CONTROL_BUFFER.putInt(1);
+                    CONTROL_BUFFER.putLong(SystemClock.uptimeMillis());
                     CONTROL_BUFFER.flip();
                     controlSc.write(CONTROL_BUFFER);
                 }
@@ -53,7 +57,6 @@ public class Controller {
         controlMessage.action = action;
         queue.add(controlMessage);
     }
-
 
 
     public SocketChannel getControlSc() {

@@ -4,4 +4,5 @@
     <string name="connect_phone">连接</string>
     <string name="reborn_app">超度</string>
     <string name="restart_app">重启</string>
+    <string name="pre_ip">192.168.43.58</string>
 </resources>

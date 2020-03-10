@@ -32,10 +32,14 @@ public class MainApp {
         });
         //持续监测当前连接 android 设备
         SINGLE_THREAD_POOL.submit(() -> {
+            long l = 0;
             while (isRunning) {
-                phoneManager.checkPhones();
-
-                Thread.sleep(5 * 1000);
+                if (l % 2 == 0) {
+                    phoneManager.checkPhones();
+                }
+                l++;
+                phoneManager.checkConnect();
+                Thread.sleep(2 * 1000);
             }
             return false;
         });
@@ -55,12 +59,17 @@ public class MainApp {
                 while (keyIterator.hasNext()) {
                     SelectionKey selectionKey = keyIterator.next();
                     keyIterator.remove();
+                    if (!selectionKey.isValid()) {
+                        selectionKey.cancel();
+                        continue;
+                    }
                     if (selectionKey.isAcceptable()) {
                         SocketChannel socketChannel = ssc.accept();
                         phoneManager.handleAccept(socketChannel, selectionKey);
                     } else if (selectionKey.isReadable()) {
                         phoneManager.handleRead(selectionKey);
                     }
+
                 }
             }
 
