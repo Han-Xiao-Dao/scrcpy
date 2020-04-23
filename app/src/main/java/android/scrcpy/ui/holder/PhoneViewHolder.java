@@ -4,13 +4,9 @@ import android.content.Context;
 import android.content.Intent;
 import android.scrcpy.R;
 import android.scrcpy.ui.activity.Main2Activity;
-import android.scrcpy.ui.activity.PhonesActivity;
 import android.scrcpy.ui.bean.PhoneBean;
 import android.view.View;
 import android.widget.TextView;
-
-
-import dongdong.util.Ln;
 import drawthink.expandablerecyclerview.holder.BaseViewHolder;
 
 public class PhoneViewHolder extends BaseViewHolder {

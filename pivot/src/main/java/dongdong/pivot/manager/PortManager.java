@@ -1,6 +1,7 @@
 package dongdong.pivot.manager;
 
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.Set;
 
 public class PortManager {
@@ -24,11 +25,14 @@ public class PortManager {
         return instance;
     }
 
-    public int getPort() {
+    public synchronized int getPort() {
         if (ports.isEmpty()) {
             return currentPort++;
         }
-        return ports.iterator().next();
+        Iterator<Integer> iterator = ports.iterator();
+        int port = iterator.next();
+        iterator.remove();
+        return port;
     }
 
     public void giveBackPort(int port) {

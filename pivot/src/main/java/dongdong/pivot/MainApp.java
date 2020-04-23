@@ -19,10 +19,10 @@ public class MainApp {
     private static final int PORT = 43735;
     public static final ExecutorService SINGLE_THREAD_POOL = new ThreadPoolExecutor(100, Integer.MAX_VALUE, 30, TimeUnit.SECONDS, new LinkedBlockingQueue<>(1024), Executors.defaultThreadFactory(), new ThreadPoolExecutor.AbortPolicy());
     public static boolean isRunning = true;
+    private static PhoneManager phoneManager = new PhoneManager();
 
 
     public static void main(String[] args) {
-        PhoneManager phoneManager = new PhoneManager();
         //异常处理
         Thread.setDefaultUncaughtExceptionHandler((thread, throwable) -> {
             isRunning = false;
@@ -30,7 +30,8 @@ public class MainApp {
             phoneManager.closeAll();
             Runtime.getRuntime().exit(0);
         });
-        //持续监测当前连接 android 设备
+
+        //持续监测当前连接 android 设备 检测 当前连接的客户端手机
         SINGLE_THREAD_POOL.submit(() -> {
             long l = 0;
             while (isRunning) {
@@ -44,6 +45,10 @@ public class MainApp {
             return false;
         });
 
+        start();
+    }
+
+    private static void start() {
         //监听端口,等待连接
         try (Selector selector = SelectorProvider.provider().openSelector();
              ServerSocketChannel ssc = SelectorProvider.provider().openServerSocketChannel()) {
@@ -59,10 +64,12 @@ public class MainApp {
                 while (keyIterator.hasNext()) {
                     SelectionKey selectionKey = keyIterator.next();
                     keyIterator.remove();
+
                     if (!selectionKey.isValid()) {
                         selectionKey.cancel();
                         continue;
                     }
+
                     if (selectionKey.isAcceptable()) {
                         SocketChannel socketChannel = ssc.accept();
                         phoneManager.handleAccept(socketChannel, selectionKey);

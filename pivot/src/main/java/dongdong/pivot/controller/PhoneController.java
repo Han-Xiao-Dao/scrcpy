@@ -1,18 +1,14 @@
 package dongdong.pivot.controller;
 
-import java.io.BufferedReader;
 import java.io.Closeable;
 import java.io.IOException;
-import java.io.InputStreamReader;
 import java.net.InetSocketAddress;
 import java.nio.BufferUnderflowException;
 import java.nio.ByteBuffer;
 import java.nio.channels.SelectionKey;
-import java.nio.channels.Selector;
 import java.nio.channels.SocketChannel;
 import java.util.concurrent.TimeUnit;
 
-import dongdong.pivot.MainApp;
 import dongdong.pivot.util.ADBUtil;
 import dongdong.pivot.manager.PortManager;
 
@@ -44,23 +40,30 @@ public class PhoneController implements Closeable {
         serialNum = phone;
         port = PortManager.getInstance().getPort();
         isConnected = false;
-//        pushServer();
     }
 
-    public void runServer() throws IOException {
-
-        pushServer();
-
-        Process process1 = ADBUtil.adbForward(serialNum, port);
-        try {
-            process1.waitFor(2, TimeUnit.SECONDS);
-        } catch (InterruptedException e) {
-            e.printStackTrace();
+    public void connect(SocketChannel clientVideoSc) throws IOException {
+        if (isConnected) {
+            return;
         }
-        process1.destroy();
 
+        synchronized (this) {
+            if (isConnected) {
+                return;
+            }
+            isConnected = true;
+        }
+        this.clientVideoSc = clientVideoSc;
+        // 放置程序
+        pushServer();
+        // 转发端口
+        portForward();
+        // 启动服务器程序
         startServer();
-
+        // 连接服务器
+        connectServer();
+        // 数据转发
+        dataForward();
     }
 
     private void pushServer() throws IOException {
@@ -71,7 +74,17 @@ public class PhoneController implements Closeable {
             e.printStackTrace();
         }
         process.destroy();
+    }
 
+
+    private void portForward() throws IOException {
+        Process process1 = ADBUtil.adbForward(serialNum, port);
+        try {
+            process1.waitFor(2, TimeUnit.SECONDS);
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        }
+        process1.destroy();
     }
 
     private void startServer() throws IOException {
@@ -104,11 +117,7 @@ public class PhoneController implements Closeable {
     }
 
 
-    public void connect() throws IOException {
-        if (isConnected) {
-            return;
-        }
-        isConnected = true;
+    public void connectServer() throws IOException {
         serverVideoSc = SocketChannel.open(new InetSocketAddress("127.0.0.1", port));
         videoBuffer.position(0);
         videoBuffer.limit(1);
@@ -125,7 +134,7 @@ public class PhoneController implements Closeable {
         videoBuffer.clear();
     }
 
-    public void forward() throws IOException {
+    public void dataForward() throws IOException {
         while (isConnected) {
             serverVideoSc.read(videoBuffer);
             videoBuffer.flip();
@@ -155,10 +164,6 @@ public class PhoneController implements Closeable {
 
     public String getSerialNum() {
         return serialNum;
-    }
-
-    public void setClientVideoSc(SocketChannel clientVideoSc) {
-        this.clientVideoSc = clientVideoSc;
     }
 
     public void setClientControlSc(SocketChannel clientControlSc) {

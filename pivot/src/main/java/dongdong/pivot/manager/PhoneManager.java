@@ -1,5 +1,9 @@
 package dongdong.pivot.manager;
 
+import dongdong.pivot.MainApp;
+import dongdong.pivot.controller.PhoneController;
+import dongdong.pivot.util.ADBUtil;
+
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
@@ -14,19 +18,14 @@ import java.util.Vector;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 
-import dongdong.pivot.MainApp;
-import dongdong.pivot.controller.PhoneController;
-import dongdong.pivot.exception.NoSuchPhoneException;
-import dongdong.pivot.util.ADBUtil;
-
 public class PhoneManager {
     private static final int TYPE_CLOSE = 0;
     private static final int TYPE_INPUT = 1;
     private static final int TYPE_PHONE_INFO = 2;
     private static final int TYPE_CONNECT = 3;
 
-    private final List<PhoneController> PHONE_CONTROLLER_LIST = new Vector<>();
-    private final Map<String, PhoneController> PHONE_CONTROLLER_MAP = new ConcurrentHashMap<>();
+    private final List<PhoneController> phoneControllerList = new Vector<>();
+    private final Map<String, PhoneController> phoneControllerMap = new ConcurrentHashMap<>();
     private final ByteBuffer buffer = ByteBuffer.allocate(1024);
 
     public void checkPhones() {
@@ -48,7 +47,7 @@ public class PhoneManager {
             }
             process.destroy();
 
-            Iterator<PhoneController> iterator = PHONE_CONTROLLER_LIST.iterator();
+            Iterator<PhoneController> iterator = phoneControllerList.iterator();
             while (iterator.hasNext()) {
                 PhoneController phone = iterator.next();
                 if (phones.contains(phone.getSerialNum())) {
@@ -56,16 +55,16 @@ public class PhoneManager {
                 }
                 iterator.remove();
                 phone.close();
-                PHONE_CONTROLLER_MAP.remove(phone.getSerialNum());
+                phoneControllerMap.remove(phone.getSerialNum());
             }
 
             for (String phone : phones) {
-                if (PHONE_CONTROLLER_MAP.containsKey(phone)) {
+                if (phoneControllerMap.containsKey(phone)) {
                     continue;
                 }
                 PhoneController phoneController = new PhoneController(phone);
-                PHONE_CONTROLLER_MAP.put(phone, phoneController);
-                PHONE_CONTROLLER_LIST.add(phoneController);
+                phoneControllerMap.put(phone, phoneController);
+                phoneControllerList.add(phoneController);
             }
 
 
@@ -75,7 +74,7 @@ public class PhoneManager {
     }
 
     public void checkConnect() {
-        for (PhoneController phoneController : PHONE_CONTROLLER_LIST) {
+        for (PhoneController phoneController : phoneControllerList) {
             if (phoneController.isConnected()) {
                 phoneController.checkConnect();
             }
@@ -83,7 +82,7 @@ public class PhoneManager {
     }
 
     public void closeAll() {
-        for (PhoneController phoneController : PHONE_CONTROLLER_LIST) {
+        for (PhoneController phoneController : phoneControllerList) {
             phoneController.close();
         }
     }
@@ -113,7 +112,7 @@ public class PhoneManager {
             } else if (cmd < 0) {
                 selectionKey.cancel();
             }
-        } catch (IOException | BufferUnderflowException | NoSuchPhoneException e) {
+        } catch (IOException | BufferUnderflowException e) {
             e.printStackTrace();
         }
     }
@@ -158,7 +157,7 @@ public class PhoneManager {
 
     private void handlePhonesInfo(SocketChannel socketChannel) {
         StringBuilder sb = new StringBuilder();
-        for (PhoneController controller : PHONE_CONTROLLER_LIST) {
+        for (PhoneController controller : phoneControllerList) {
             sb.append(controller.getSerialNum()).append(",");
         }
         buffer.clear();
@@ -182,7 +181,7 @@ public class PhoneManager {
             e.printStackTrace();
             return;
         }
-        PhoneController controller = PHONE_CONTROLLER_MAP.get(phone);
+        PhoneController controller = phoneControllerMap.get(phone);
         if (controller == null) {
             return;
         }
@@ -192,28 +191,15 @@ public class PhoneManager {
     }
 
     private void connectPhone(SocketChannel socketChannel, String phone) {
-        try {
-            PhoneController phoneController = PHONE_CONTROLLER_MAP.get(phone);
+        try (PhoneController phoneController = phoneControllerMap.get(phone)) {
+
             if (phoneController == null) {
                 socketChannel.close();
                 return;
             }
-            if (phoneController.isConnected()) {
-                socketChannel.close();
-                return;
-            }
 
-            try {
-                phoneController.runServer();
-                phoneController.setClientVideoSc(socketChannel);
-                phoneController.connect();
-                phoneController.forward();
-            } finally {
-                phoneController.close();
-            }
-
-
-        } catch (Throwable e) {
+            phoneController.connect(socketChannel);
+        } catch (IOException e) {
             e.printStackTrace();
         }
 
@@ -230,7 +216,6 @@ public class PhoneManager {
                 return null;
             }
         }
-        System.out.println("str: " + new String(buffer.array(), 0, length));
         return new String(buffer.array(), 0, length);
     }
 
